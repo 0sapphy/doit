@@ -305,4 +305,8 @@ app.listen(3000, () => {
   console.log("Server is running!");
 });
 
-module.exports = app;
+const server = app;
+
+module.exports = (req, res) => {
+  return server(req, res); 
+};
