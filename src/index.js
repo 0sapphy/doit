@@ -1,9 +1,4 @@
-try {
-  require("node:process").loadEnvFile()
-} catch (error) {
-  return;
-}
-
+require("node:process").loadEnvFile();
 const path = require("node:path");
 const express = require("express");
 const mongoose = require("mongoose");
@@ -301,10 +296,6 @@ app.delete("/api/todos/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-/*app.listen(3000, () => {
+app.listen(3000, () => {
   console.log("Server is running!");
-});*/
-
-module.exports = (req, res) => {
-  return app(req, res);
-};
+});
