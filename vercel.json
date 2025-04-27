@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "src/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "src/index.js"
+    }
+  ],
+  "env": {
+    "MONGO_URI": "@mongo_uri",
+    "AUTH_DISCORD_CLIENT_ID": "@auth_discord_client_id",
+    "AUTH_DISCORD_CLIENT_SECRET": "@auth_discord_client_secret",
+    "URL": "@url"
+  }
+}
