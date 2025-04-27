@@ -1,4 +1,9 @@
-require("node:process").loadEnvFile();
+try {
+  require("node:process").loadEnvFile();
+} catch (error) {
+  return;
+}
+
 const path = require("node:path");
 const express = require("express");
 const mongoose = require("mongoose");
