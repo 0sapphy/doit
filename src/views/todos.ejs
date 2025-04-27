@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/public/css/output.css">
+  <title>My Tasks</title>
+</head>
+<body class="bg-gradient-to-b from-gray-700 via-gray-800 to-gray-900 min-h-screen flex flex-col">
+  <%- include("Partials/Navbar") %>
+
+  <div id="toast-container" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+
+  <div class="flex-grow bg-gradient-to-b from-gray-700 via-gray-800 to-gray-900">
+    <div class="max-w-4xl mx-auto py-10 relative">
+      <div class="flex items-center justify-between mb-8">
+        <h1 class="text-4xl font-extrabold text-white">My Tasks</h1>
+        <div class="flex items-center space-x-3">
+          <label for="toggle-suggestions" class="text-sm font-medium text-gray-300">Show Suggestions</label>
+          <input id="toggle-suggestions" type="checkbox" class="h-6 w-6 text-blue-400 focus:ring-blue-500 border-gray-500 rounded">
+        </div>
+      </div>
+
+      <div class="bg-gray-800 shadow-md rounded-lg p-6 mb-8">
+        <h2 class="text-lg font-semibold text-gray-300 mb-4">Add a New Task</h2>
+        <div class="flex items-center space-x-4 relative">
+          <input id="task-title" type="text" placeholder="Enter task title..." class="flex-grow px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-700 text-white placeholder-gray-400">
+          <button id="add-task-btn" class="px-6 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700">Add</button>
+          <ul id="suggestions" class="absolute bg-gray-700/80 border border-gray-600 rounded-md shadow-lg max-h-40 overflow-y-auto w-full hidden text-white backdrop-blur-sm">
+            <!-- Suggestions will be dynamically populated here -->
+          </ul>
+        </div>
+      </div>
+
+      <div id="tasks-container" class="bg-gray-800 shadow-md rounded-lg p-6 <%= todos.length === 0 ? 'hidden' : '' %>">
+        <h2 class="text-lg font-semibold text-gray-300 mb-4">Your Tasks</h2>
+        <ul id="task-list" class="space-y-4">
+          <% todos.forEach(todo => { %>
+            <li class="flex items-center justify-between bg-gray-700 p-4 rounded-md shadow-sm" data-id="<%= todo._id %>">
+              <div>
+                <h3 class="text-lg font-medium text-white"><%= todo.title %></h3>
+                <% if (todo.description) { %>
+                  <p class="text-sm text-gray-400"><%= todo.description %></p>
+                <% } %>
+                <p class="text-sm text-gray-300">Status: <span class="font-semibold text-blue-400"><%= todo.status %></span></p>
+              </div>
+              <div class="flex items-center space-x-3">
+                <select class="status-select px-3 py-1 border rounded-md bg-gray-600 text-white border-gray-500" data-id="<%= todo._id %>">
+                  <option value="Pending" <%= todo.status === "Pending" ? "selected" : "" %>>Pending</option>
+                  <option value="In Progress" <%= todo.status === "In Progress" ? "selected" : "" %>>In Progress</option>
+                  <option value="Completed" <%= todo.status === "Completed" ? "selected" : "" %>>Completed</option>
+                </select>
+                <button class="delete-task-btn px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700">Delete</button>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-gray-800 text-gray-300 py-4">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center">
+      <div class="text-sm">
+        <p>Version 1.0.0</p>
+      </div>
+      <div class="mt-2 sm:mt-0">
+        <a href="https://github.com/0sapphy/doit" target="_blank" class="text-blue-400 hover:text-blue-500 text-sm">
+          GitHub
+        </a>
+      </div>
+      <div class="mt-2 sm:mt-0 text-sm">
+        <p>&copy; <%= new Date().getFullYear() %> DOIT. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const taskList = document.getElementById("task-list");
+      const addTaskBtn = document.getElementById("add-task-btn");
+      const taskTitleInput = document.getElementById("task-title");
+      const toastContainer = document.getElementById("toast-container");
+      const suggestionsContainer = document.getElementById("suggestions");
+      const toggleSuggestions = document.getElementById("toggle-suggestions");
+      const tasksContainer = document.getElementById("tasks-container");
+
+      let predefinedTasks = [];
+      let isTyping = false;
+      let suggestionsEnabled = true;
+
+      // Load toggle state from local storage
+      const savedToggleState = localStorage.getItem("showSuggestions");
+      if (savedToggleState !== null) {
+        suggestionsEnabled = JSON.parse(savedToggleState);
+        toggleSuggestions.checked = suggestionsEnabled;
+      }
+
+      async function fetchPredefinedTasks() {
+        try {
+          const response = await fetch("/api/predefined");
+          if (response.ok) {
+            predefinedTasks = await response.json();
+          } else {
+            showToast("Failed to load predefined tasks.");
+          }
+        } catch {
+          showToast("An error occurred while fetching predefined tasks.");
+        }
+      }
+
+      taskTitleInput.addEventListener("input", () => {
+        if (!suggestionsEnabled) {
+          suggestionsContainer.classList.add("hidden");
+          return;
+        }
+
+        const query = taskTitleInput.value.toLowerCase().trim();
+        isTyping = true;
+
+        if (!query) {
+          suggestionsContainer.classList.add("hidden");
+          return;
+        }
+
+        const filteredTasks = predefinedTasks.filter(task =>
+          task.title.toLowerCase().includes(query)
+        );
+
+        if (filteredTasks.length > 0) {
+          suggestionsContainer.innerHTML = filteredTasks
+            .map(task => `<li class="px-4 py-2 hover:bg-gray-100 cursor-pointer">${task.title}</li>`)
+            .join("");
+          suggestionsContainer.classList.remove("hidden");
+        } else {
+          suggestionsContainer.classList.add("hidden");
+        }
+      });
+
+      suggestionsContainer.addEventListener("click", (event) => {
+        if (event.target.tagName === "LI") {
+          taskTitleInput.value = event.target.textContent;
+          suggestionsContainer.classList.add("hidden");
+          isTyping = false;
+        }
+      });
+
+      taskTitleInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+
+          if (!isTyping) {
+            addTask();
+          } else if (!suggestionsContainer.classList.contains("hidden")) {
+            const firstSuggestion = suggestionsContainer.querySelector("li");
+            if (firstSuggestion) {
+              taskTitleInput.value = firstSuggestion.textContent;
+              suggestionsContainer.classList.add("hidden");
+              isTyping = false;
+            }
+          }
+        }
+      });
+
+      toggleSuggestions.addEventListener("change", (event) => {
+        suggestionsEnabled = event.target.checked;
+        localStorage.setItem("showSuggestions", JSON.stringify(suggestionsEnabled));
+        if (!suggestionsEnabled) {
+          suggestionsContainer.classList.add("hidden");
+        }
+      });
+
+      function showToast(message) {
+        const toast = document.createElement("div");
+        toast.className = "toast bg-red-500 text-white px-4 py-2 rounded-md shadow-md";
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+          toast.remove();
+        }, 4000);
+      }
+
+      async function addTask() {
+        const title = taskTitleInput.value.trim();
+        if (!title) {
+          showToast("Task title is required.");
+          return;
+        }
+
+        try {
+          const response = await fetch("/api/todos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title }),
+          });
+
+          if (response.ok) {
+            const newTask = await response.json();
+            const taskItem = createTaskItem(newTask);
+            taskList.appendChild(taskItem);
+            taskTitleInput.value = "";
+            tasksContainer.classList.remove("hidden");
+            await updatePredefinedTasks(newTask.title);
+          } else {
+            showToast("Failed to add task.");
+          }
+        } catch {
+          showToast("An error occurred while adding the task.");
+        }
+      }
+
+      async function updatePredefinedTasks(title) {
+        try {
+          const response = await fetch("/api/predefined", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title }),
+          });
+
+          if (!response.ok) {
+            showToast("Failed to update predefined tasks.");
+          }
+        } catch {
+          showToast("An error occurred while updating predefined tasks.");
+        }
+      }
+
+      addTaskBtn.addEventListener("click", addTask);
+
+      taskList.addEventListener("change", async (event) => {
+        if (event.target.classList.contains("status-select")) {
+          const taskId = event.target.dataset.id;
+          const newStatus = event.target.value;
+
+          try {
+            const response = await fetch(`/api/todos/${taskId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: newStatus }),
+            });
+
+            if (response.ok) {
+              const updatedTask = await response.json();
+              const taskItem = event.target.closest("li");
+              const statusText = taskItem.querySelector("span.font-semibold");
+              statusText.textContent = updatedTask.status;
+            } else {
+              showToast("Failed to update task status.");
+            }
+          } catch {
+            showToast("An error occurred while updating the task status.");
+          }
+        }
+      });
+
+      taskList.addEventListener("click", async (event) => {
+        if (event.target.classList.contains("delete-task-btn")) {
+          const taskItem = event.target.closest("li");
+          const taskId = taskItem.dataset.id;
+
+          try {
+            const response = await fetch(`/api/todos/${taskId}`, {
+              method: "DELETE",
+            });
+
+            if (response.ok) {
+              taskItem.remove();
+              if (taskList.children.length === 0) {
+                tasksContainer.classList.add("hidden");
+              }
+            } else {
+              showToast("Failed to delete task.");
+            }
+          } catch {
+            showToast("An error occurred while deleting the task.");
+          }
+        }
+      });
+
+      function createTaskItem(task) {
+        const li = document.createElement("li");
+        li.className = "flex items-center justify-between bg-gray-100 p-4 rounded-md shadow-sm";
+        li.dataset.id = task._id;
+        li.innerHTML = `
+          <div>
+            <h3 class="text-lg font-medium">${task.title}</h3>
+          </div>
+          <div class="flex items-center space-x-3">
+            <select class="status-select px-3 py-1 border rounded-md" data-id="${task._id}">
+              <option value="Pending" ${task.status === "Pending" ? "selected" : ""}>Pending</option>
+              <option value="In Progress" ${task.status === "In Progress" ? "selected" : ""}>In Progress</option>
+              <option value="Completed" ${task.status === "Completed" ? "selected" : ""}>Completed</option>
+            </select>
+            <button class="delete-task-btn px-3 py-1 bg-red-100 text-red-600 text-sm font-medium rounded-md hover:bg-red-200">Delete</button>
+          </div>
+        `;
+        return li;
+      }
+
+      fetchPredefinedTasks();
+    });
+  </script>
+</body>
+</html>

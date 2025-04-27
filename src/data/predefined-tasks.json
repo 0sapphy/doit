@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "title": "Set up your workspace",
+    "description": "Organize your desk and set up your tools for productivity.",
+    "completed": false
+  },
+  {
+    "title": "Make a cake for my mom’s birthday",
+    "frequency": 3
+  },
+  {
+    "id": 2,
+    "title": "Plan your day",
+    "description": "Write down your tasks and prioritize them.",
+    "completed": false,
+    "frequency": 2
+  },
+  {
+    "id": 3,
+    "title": "Take a break",
+    "description": "Relax and recharge to maintain focus.",
+    "completed": false,
+    "frequency": 2
+  },
+  {
+    "title": "Take my cat out",
+    "frequency": 2
+  },
+  {
+    "title": "Go to the gym",
+    "frequency": 1
+  }
+]
