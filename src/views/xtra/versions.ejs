@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Versions</title>
+  <link rel="stylesheet" href="/public/css/output.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white flex flex-col min-h-screen">
+  <%- include('../Partials/Navbar') %>
+  <main class="flex-grow max-w-5xl mx-auto mt-8 p-6">
+    <header class="text-center mb-8">
+      <h1 class="text-4xl font-extrabold text-blue-400">Version History</h1>
+      <p class="text-gray-400 mt-2">Explore the changes and updates in each version of DOIT.</p>
+    </header>
+    <% const versions = [
+      { 
+        version: "1.0.0", 
+        changelog: [
+          "Initial release",
+          "Added user authentication",
+          "Implemented notifications",
+          "Created version history page",
+          "Integrated gradient animations for the latest version"
+        ], 
+        latest: false 
+      },
+      { 
+        version: "1.1.0", 
+        changelog: [
+          "Added dynamic stats display on the admin panel",
+          "Implemented real-time updates for notifications and todos using Server-Sent Events (SSE)",
+          "Enhanced admin panel with a new stats section showing total users, todos, and notifications",
+          "Improved error handling with detailed messages and codes",
+          "Optimized the notification system to dynamically update without page refresh",
+          "Fixed an issue where todos stats were not updating dynamically",
+          "Resolved minor UI inconsistencies in the admin panel"
+        ], 
+        latest: true 
+      }
+    ]; %>
+    <% const latestVersion = versions.find(v => v.latest); %>
+    <% if (latestVersion) { %>
+      <section id="latest-version" class="rounded-lg shadow-lg p-8 mb-8" style="background: linear-gradient(to right, #3b82f6, #9333ea, #ec4899);">
+        <div class="flex justify-between items-center">
+          <h2 class="text-3xl font-bold text-white">Latest Version: <%= latestVersion.version %></h2>
+          <svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z" />
+          </svg>
+        </div>
+        <div class="mt-4">
+          <h3 class="text-lg font-semibold text-white">Changelog:</h3>
+          <ul class="list-disc list-inside mt-2 text-gray-200">
+            <% latestVersion.changelog.forEach(change => { %>
+              <li><%= change %></li>
+            <% }); %>
+          </ul>
+        </div>
+      </section>
+    <% } %>
+    <section class="space-y-8">
+      <% versions.filter(v => !v.latest).forEach(({ version, changelog }, index) => { %>
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-blue-300">Version <%= version %></h2>
+            <button class="text-sm text-gray-400 hover:text-white focus:outline-none toggle-btn" data-index="<%= index %>">
+              <span id="toggle-text-<%= index %>">Show Details</span>
+            </button>
+          </div>
+          <div id="changelog-<%= index %>" class="hidden mt-4 overflow-hidden">
+            <h3 class="text-lg font-semibold text-gray-200">Changelog:</h3>
+            <ul class="list-disc list-inside mt-2 text-gray-300">
+              <% changelog.forEach(change => { %>
+                <li><%= change %></li>
+              <% }); %>
+            </ul>
+          </div>
+        </div>
+      <% }); %>
+    </section>
+  </main>
+  <footer class="bg-gray-800 p-4 text-center text-gray-400 mt-8">
+    &copy; <%= new Date().getFullYear() %> DOIT. All rights reserved.
+  </footer>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggleButtons = document.querySelectorAll(".toggle-btn");
+      let activeIndex = null;
+
+      toggleButtons.forEach(button => {
+        button.addEventListener("click", () => {
+          const index = button.getAttribute("data-index");
+          const changelog = document.getElementById(`changelog-${index}`);
+          const toggleText = document.getElementById(`toggle-text-${index}`);
+
+          // Close the previously active changelog with animation
+          if (activeIndex !== null && activeIndex !== index) {
+            const previousChangelog = document.getElementById(`changelog-${activeIndex}`);
+            const previousToggleText = document.getElementById(`toggle-text-${activeIndex}`);
+            anime({
+              targets: previousChangelog,
+              height: 0,
+              opacity: 0,
+              duration: 500,
+              easing: "easeInOutQuad",
+              complete: () => {
+                previousChangelog.classList.add("hidden");
+                previousToggleText.textContent = "Show Details";
+              }
+            });
+          }
+
+          // Toggle the current changelog with animation
+          const isHidden = changelog.classList.contains("hidden");
+          if (isHidden) {
+            changelog.classList.remove("hidden");
+            changelog.style.height = "auto";
+            const height = changelog.offsetHeight + "px";
+            changelog.style.height = "0px";
+            anime({
+              targets: changelog,
+              height: height,
+              opacity: 1,
+              duration: 500,
+              easing: "easeInOutQuad"
+            });
+            toggleText.textContent = "Hide Details";
+          } else {
+            anime({
+              targets: changelog,
+              height: 0,
+              opacity: 0,
+              duration: 500,
+              easing: "easeInOutQuad",
+              complete: () => {
+                changelog.classList.add("hidden");
+              }
+            });
+            toggleText.textContent = "Show Details";
+          }
+
+          // Update the active index
+          activeIndex = isHidden ? index : null;
+        });
+      });
+
+      // Gradient animation for the latest version
+      const latestVersionSection = document.getElementById("latest-version");
+      const gradients = [
+        "linear-gradient(to right, #3b82f6, #9333ea, #ec4899)",
+        "linear-gradient(to right, #9333ea, #ec4899, #3b82f6)",
+        "linear-gradient(to right, #ec4899, #3b82f6, #9333ea)"
+      ];
+      let gradientIndex = 0;
+
+      setInterval(() => {
+        gradientIndex = (gradientIndex + 1) % gradients.length;
+        latestVersionSection.style.background = gradients[gradientIndex];
+        latestVersionSection.style.transition = "background 1s ease-in-out";
+      }, 3000);
+    });
+  </script>
+</body>
+</html>

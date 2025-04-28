@@ -8,8 +8,8 @@
           </svg>
         </a>
       </div>
-      <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
-        <div class="relative">
+      <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0 space-x-4">
+        <div class="relative flex items-center">
           <button id="notification-btn" type="button" class="bg-gray-800 p-1 rounded-full text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white">
             <span class="sr-only">View notifications</span>
             <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -18,6 +18,12 @@
           </button>
           <span id="notification-indicator" class="hidden absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
         </div>
+        <a href="/versions" id="version-btn" class="bg-gray-800 p-1 rounded-full text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white">
+          <span class="sr-only">View versions</span>
+          <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h8m-8 5h16" />
+          </svg>
+        </a>
         <% if (user) { %>
           <a href="/profile" class="ml-4">
             <img src="https://media.discordapp.net/avatars/<%= user.discordId %>/<%= user.avatar %>" alt="User Avatar" class="h-8 w-8 rounded-full border-2 border-gray-300 hover:border-gray-400">
@@ -29,34 +35,27 @@
     </div>
   </div>
 
-  <div id="notification-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50">
-    <div id="notification-modal-content" class="bg-white rounded-lg shadow-lg max-w-lg w-full p-6 transform scale-95 opacity-0 transition-all duration-300">
-      <h2 class="text-lg font-bold mb-4">Notifications</h2>
-      <ul id="notification-list" class="space-y-2 max-h-64 overflow-y-auto"></ul>
-      <p id="no-notifications-message" class="text-gray-500 text-center hidden">No notifications available.</p>
-      <button id="close-modal" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Close</button>
+  <div id="notification-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+    <div id="notification-modal-content" class="bg-gray-800 text-white rounded-lg shadow-lg w-[90%] max-w-3xl max-h-[85vh] p-6 transform scale-95 opacity-0 transition-all duration-300 overflow-y-auto relative">
+      <button id="close-modal" class="absolute top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-full hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-400">
+        &times;
+      </button>
+      <h2 class="text-3xl font-bold mb-6 text-center border-b border-gray-700 pb-4">Notifications</h2>
+      <ul id="notification-list" class="space-y-4 max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-600 px-4"></ul>
+      <p id="no-notifications-message" class="text-gray-400 text-center hidden mt-4">No notifications available.</p>
     </div>
   </div>
 
-  <div class="sm:hidden" id="mobile-menu">
-    <div class="px-2 pt-2 pb-3 space-y-1">
-      <a href="/" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Home</a>
-      <a href="/about" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">About</a>
-    </div>
+  <div id="error-message" class="hidden bg-red-600 text-white text-sm font-medium p-2 rounded-md absolute top-4 right-4 shadow-lg">
+    <span id="error-text"></span>
+    <button id="close-error" class="ml-2 text-white hover:text-gray-300">&times;</button>
   </div>
+
+  <div id="toast-container" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
 </nav>
 
 <script>
   document.addEventListener("DOMContentLoaded", async () => {
-    anime({
-      targets: '#logo-svg text',
-      translateY: [-10, 0],
-      opacity: [0, 1],
-      easing: 'easeOutExpo',
-      duration: 1500,
-      delay: anime.stagger(100),
-    });
-
     const notificationBtn = document.getElementById("notification-btn");
     const notificationModal = document.getElementById("notification-modal");
     const notificationModalContent = document.getElementById("notification-modal-content");
@@ -115,11 +114,16 @@
     } else {
       notifications.forEach((notification) => {
         const notificationItem = document.createElement("li");
-        notificationItem.className = `text-gray-700 ${notification.read ? "opacity-50" : ""} flex justify-between items-center transition-all duration-300`;
+        const isLong = notification.message.length > 50;
+        const shortMessage = isLong ? notification.message.slice(0, 50) + "..." : notification.message;
+        notificationItem.className = `bg-gray-700 p-4 rounded-lg shadow-md text-gray-300 ${notification.read ? "opacity-50" : ""} flex flex-col transition-all duration-300`;
         notificationItem.innerHTML = `
-          <span>${notification.message}</span>
-          <button class="text-blue-500 hover:underline text-sm mark-read-btn" data-id="${notification.id}">
-            ${notification.read ? "Read" : "Mark as Read"}
+          <span class="whitespace-pre-line">${shortMessage}</span>
+          ${isLong ? `<button class="show-more-btn text-blue-400 hover:text-blue-500 mt-2" data-full-message="${notification.message}">Show More</button>` : ""}
+          <button class="mark-read-btn mt-2 self-end" data-id="${notification.id}" aria-label="Mark as Read">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-400 hover:text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
           </button>
         `;
         notificationList.appendChild(notificationItem);
@@ -127,19 +131,26 @@
     }
 
     notificationList.addEventListener("click", (event) => {
-      if (event.target.classList.contains("mark-read-btn")) {
-        const notificationId = parseInt(event.target.getAttribute("data-id"), 10);
+      if (event.target.closest(".mark-read-btn")) {
+        const notificationId = parseInt(event.target.closest(".mark-read-btn").getAttribute("data-id"), 10);
         const notification = notifications.find((n) => n.id === notificationId);
         if (notification && !notification.read) {
           notification.read = true;
-          event.target.textContent = "Read";
-          event.target.parentElement.classList.add("opacity-50");
+          event.target.closest("li").classList.add("opacity-50");
 
           storedReadStatus[notificationId] = true;
           localStorage.setItem("readNotifications", JSON.stringify(storedReadStatus));
 
           updateNotificationIndicator();
         }
+      }
+
+      if (event.target.closest(".show-more-btn")) {
+        const button = event.target.closest(".show-more-btn");
+        const fullMessage = button.getAttribute("data-full-message");
+        const parent = button.parentElement;
+        parent.querySelector("span").textContent = fullMessage;
+        button.remove();
       }
     });
 
@@ -153,5 +164,61 @@
     }
 
     updateNotificationIndicator();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get("error");
+    const code = urlParams.get("code");
+
+    if (error) {
+      let message = "";
+
+      switch (error) {
+        case "unauthenticated":
+          message = "You must be logged in to access this page.";
+          break;
+        case "forbidden":
+          message = "You do not have permission to access this page.";
+          break;
+        case "not_found":
+          message = "The requested resource was not found.";
+          break;
+        case "server_error":
+          message = "An internal server error occurred.";
+          break;
+        default:
+          message = "An unknown error occurred.";
+      }
+
+      if (message) {
+        showToast(code || "Error", message, "error");
+
+        // Clear the error parameters from the URL
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete("error");
+        newUrl.searchParams.delete("code");
+        window.history.replaceState({}, document.title, newUrl.toString());
+      }
+    }
+
+    function showToast(code, message, type = "info") {
+      const toastContainer = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      toast.className = `toast bg-${type === "error" ? "red" : "blue"}-600 text-white text-sm font-medium p-3 rounded-md shadow-lg flex items-center`;
+      toast.innerHTML = `
+        <span><strong>${code}</strong> | ${message}</span>
+        <button class="ml-4 text-white hover:text-gray-300 focus:outline-none">&times;</button>
+      `;
+
+      const closeButton = toast.querySelector("button");
+      closeButton.addEventListener("click", () => {
+        toast.remove();
+      });
+
+      toastContainer.appendChild(toast);
+
+      setTimeout(() => {
+        toast.remove();
+      }, 5000);
+    }
   });
 </script>

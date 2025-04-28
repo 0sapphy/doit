@@ -12,6 +12,23 @@
   <div class="flex-grow bg-gradient-to-b from-gray-700 via-gray-800 to-gray-900">
     <div class="max-w-4xl mx-auto py-10">
       <h1 class="text-3xl font-bold text-white mb-6">Admin Panel</h1>
+
+      <!-- Stats Section -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-md text-center">
+          <h2 class="text-lg font-semibold text-gray-300">Total Users</h2>
+          <p id="total-users" class="text-2xl font-bold text-white mt-2">0</p>
+        </div>
+        <div class="bg-gray-800 p-6 rounded-lg shadow-md text-center">
+          <h2 class="text-lg font-semibold text-gray-300">Total Todos</h2>
+          <p id="total-todos" class="text-2xl font-bold text-white mt-2">0</p>
+        </div>
+        <div class="bg-gray-800 p-6 rounded-lg shadow-md text-center">
+          <h2 class="text-lg font-semibold text-gray-300">Total Notifications</h2>
+          <p id="total-notifications" class="text-2xl font-bold text-white mt-2">0</p>
+        </div>
+      </div>
+
       <form id="notification-form" class="bg-gray-800 shadow-md rounded-lg p-6">
         <h2 class="text-lg font-semibold text-gray-300 mb-4">Push a New Notification</h2>
         <div class="mb-4">
@@ -48,12 +65,31 @@
   </footer>
 
   <script>
+    const notificationForm = document.getElementById("notification-form");
+    const notificationsList = document.getElementById("notifications-list");
+    const notificationResult = document.getElementById("notification-result");
+
+    async function fetchStats() {
+      try {
+        const response = await fetch("/api/stats");
+        if (response.ok) {
+          const stats = await response.json();
+          document.getElementById("total-users").textContent = stats.totalUsers || 0;
+          document.getElementById("total-todos").textContent = stats.totalTodos || 0;
+          document.getElementById("total-notifications").textContent = stats.totalNotifications || 0;
+        } else {
+          console.error("Failed to fetch stats.");
+        }
+      } catch (err) {
+        console.error("Error fetching stats:", err);
+      }
+    }
+
     async function fetchNotifications() {
       try {
         const response = await fetch("/api/notifications");
         if (response.ok) {
           const notifications = await response.json();
-          const notificationsList = document.getElementById("notifications-list");
           notificationsList.innerHTML = notifications
             .map(
               (notification) => `
@@ -67,15 +103,14 @@
             )
             .join("");
         } else {
-          alert("Failed to fetch notifications.");
+          console.error("Failed to fetch notifications.");
         }
       } catch (err) {
         console.error("Error fetching notifications:", err);
-        alert("An error occurred while fetching notifications.");
       }
     }
 
-    document.getElementById("notification-form").addEventListener("submit", async (event) => {
+    notificationForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const message = document.getElementById("notification-message").value.trim();
 
@@ -93,9 +128,11 @@
 
         if (response.ok) {
           const result = await response.json();
-          document.getElementById("notification-result").textContent = "Notification pushed successfully!";
-          document.getElementById("notification-result").classList.remove("hidden");
+          notificationResult.textContent = "Notification pushed successfully!";
+          notificationResult.classList.remove("hidden");
           document.getElementById("notification-message").value = "";
+          fetchStats(); // Update stats dynamically
+          fetchNotifications(); // Update notifications dynamically
         } else {
           alert("Failed to push notification.");
         }
@@ -105,7 +142,7 @@
       }
     });
 
-    document.getElementById("notifications-list").addEventListener("click", async (event) => {
+    notificationsList.addEventListener("click", async (event) => {
       if (event.target.classList.contains("delete-notification-btn")) {
         const notificationId = event.target.dataset.id;
 
@@ -116,6 +153,7 @@
 
           if (response.ok) {
             event.target.closest("li").remove();
+            fetchStats(); // Update stats dynamically
           } else {
             alert("Failed to delete notification.");
           }
@@ -126,7 +164,19 @@
       }
     });
 
+    fetchStats();
     fetchNotifications();
+
+    // WebSocket or Server-Sent Events (SSE) for real-time updates
+    const eventSource = new EventSource("/api/updates");
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "stats") {
+        fetchStats(); // Update stats dynamically when a "stats" update is received
+      } else if (data.type === "notifications") {
+        fetchNotifications(); // Update notifications dynamically when a "notifications" update is received
+      }
+    };
   </script>
 </body>
 </html>

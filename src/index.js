@@ -4,24 +4,28 @@ try {
   return;
 }
 
-const path = require("node:path");
 const express = require("express");
-const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
+
 const passport = require("passport");
 const DiscordStrategy = require("passport-discord").Strategy;
+const mongoose = require("mongoose");
 const { User, generateUserObject } = require("./models/User");
-const fs = require("fs");
+const Todo = require("./models/Todo");
+
+const path = require("node:path");
+const fs = require("node:fs");
+
 const notificationsFilePath = path.join(__dirname, "data", "notifications.json");
 const predefinedTasksFilePath = path.join(__dirname, "data", "predefined-tasks.json");
-const Todo = require("./models/Todo");
 
 const app = express();
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "/views/"));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -134,8 +138,10 @@ app.post("/api/notifications", isAuthenticated, isAdmin, (req, res) => {
     fs.writeFileSync(notificationsFilePath, JSON.stringify(notifications, null, 2), "utf8");
 
     res.status(201).json({ message: "Notification added successfully.", notification: newNotification });
+    broadcastUpdate("notifications");
   } catch {
-    res.status(500).json({ error: "Failed to add notification." });
+    const redirectUrl = req.headers.referer || '/';
+    res.redirect(`${redirectUrl}?error=server_error&code=500`);
   }
 });
 
@@ -148,15 +154,18 @@ app.delete("/api/notifications/:id", isAuthenticated, isAdmin, (req, res) => {
 
     const notificationIndex = notifications.findIndex((n) => n.id === parseInt(id));
     if (notificationIndex === -1) {
-      return res.status(404).json({ error: "Notification not found." });
+      const redirectUrl = req.headers.referer || '/';
+      return res.redirect(`${redirectUrl}?error=not_found&code=404`);
     }
 
     notifications.splice(notificationIndex, 1);
     fs.writeFileSync(notificationsFilePath, JSON.stringify(notifications, null, 2), "utf8");
 
     res.json({ message: "Notification deleted successfully." });
+    broadcastUpdate("notifications");
   } catch {
-    res.status(500).json({ error: "Failed to delete notification." });
+    const redirectUrl = req.headers.referer || '/';
+    res.redirect(`${redirectUrl}?error=server_error&code=500`);
   }
 });
 
@@ -209,14 +218,16 @@ function isAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
   }
-  res.redirect("/auth/discord");
+  const redirectUrl = req.headers.referer || '/';
+  res.redirect(`${redirectUrl}?error=unauthenticated&code=401`);
 }
 
 function isAdmin(req, res, next) {
   if (req.isAuthenticated() && req.user.discordId === "1143607268781342893") {
     return next();
   }
-  res.status(403).send("Access denied.");
+  const redirectUrl = req.headers.referer || '/';
+  res.redirect(`${redirectUrl}?error=forbidden&code=403`);
 }
 
 app.get("/admin", isAuthenticated, isAdmin, (req, res) => {
@@ -228,7 +239,8 @@ app.get("/todos", isAuthenticated, async (req, res) => {
     const todos = await Todo.find({ userId: req.user.id });
     res.render("todos", { user: req.user, todos });
   } catch {
-    res.status(500).send("Failed to load tasks.");
+    const redirectUrl = req.headers.referer || '/';
+    res.redirect(`${redirectUrl}?error=server_error&code=500`);
   }
 });
 
@@ -256,6 +268,7 @@ app.post("/api/todos", isAuthenticated, async (req, res) => {
     });
 
     res.status(201).json(newTodo);
+    broadcastUpdate("stats"); // Ensure stats are updated dynamically
   } catch {
     res.status(500).json({ error: "Failed to create todo." });
   }
@@ -296,10 +309,57 @@ app.delete("/api/todos/:id", isAuthenticated, async (req, res) => {
     }
 
     res.json({ message: "Todo deleted successfully." });
+    broadcastUpdate("stats"); // Ensure stats are updated dynamically
   } catch {
     res.status(500).json({ error: "Failed to delete todo." });
   }
 });
+
+app.get("/versions", (req, res) => {
+  res.render("xtra/versions", { user: req.user });
+});
+
+app.get("/api/stats", isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalTodos = await Todo.countDocuments();
+    const notifications = JSON.parse(fs.readFileSync(notificationsFilePath, "utf8"));
+    const totalNotifications = notifications.length;
+
+    res.json({ totalUsers, totalTodos, totalNotifications });
+  } catch (err) {
+    console.error("Error fetching stats:", err);
+    res.status(500).json({ error: "Failed to fetch stats." });
+  }
+});
+
+app.use((req, res) => {
+  const redirectUrl = req.headers.referer || '/';
+  res.redirect(`${redirectUrl}?error=not_found&code=404`);
+});
+
+const clients = [];
+
+app.get("/api/updates", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  clients.push(res);
+
+  req.on("close", () => {
+    const index = clients.indexOf(res);
+    if (index !== -1) {
+      clients.splice(index, 1);
+    }
+  });
+});
+
+function broadcastUpdate(type) {
+  clients.forEach((client) => {
+    client.write(`data: ${JSON.stringify({ type })}\n\n`);
+  });
+}
 
 app.listen(3000, () => {
   console.log("Server is running!");
